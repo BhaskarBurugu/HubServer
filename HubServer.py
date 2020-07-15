@@ -25,8 +25,13 @@ class MyThread(QThread):
 
         sel = selectors.DefaultSelector()
         #host = '192.168.1.150'  # Standard loopback interface address (localhost)
-        host = 'localhost'  # Standard loopback interface address (localhost)
+        #host = 'DESKTOP-E9LCLCN'  # Standard loopback interface address (localhost)
         port = 6666  # Port to listen on (non-privileged ports are > 1023)
+        host = socket.gethostname()
+        IPAddr = socket.gethostbyname(host)
+        self.change_value.emit("Your Computer Name is:" + host)
+        self.change_value.emit("Your Computer IP Address is:" + IPAddr)
+
         lsock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         lsock.bind((host, port))
         lsock.listen()
@@ -68,27 +73,31 @@ class MyThread(QThread):
                           data.inb = recv_data
                           #print('type of recv_data is', data.inb)
                           self.change_value.emit('Received Data :'+ str(recv_data) +'\nData in Hex Format : '+ str(recv_data.hex()))
-                          if(GUI_Client_Conn_Status == True) and (recv_data != GUI_CONNECT):
+
+                          #    if(GUI_Client_Conn_Status == True) and (recv_data != GUI_CONNECT):
+                          if (GUI_Client_Conn_Status == True) and (recv_data != GUI_CONNECT):
                               GUI_sock.send(recv_data)
                               self.change_value.emit('#####   Data Sent to GUI  ######\n')
-                          else :
+                          else:
                               self.change_value.emit('######  GUI Link Down  #######\n')
-                         # print(recv_data.hex())
+                          # print(recv_data.hex())
                         #  self.change_value.emit('Received Data :'+ str(recv_data) +'\nData in Hex Format : '+ str(recv_data.hex()))
                           if (recv_data == GUI_CONNECT ):
                               if ((GUI_Client_Conn_Status == False) or (data.addr == GUI_IPAddr)):
                                   self.change_value.emit('Connected to GUI :' + str(data.addr))
+                                  self.change_value.emit('######  GUI Link Up  #######\n')
                                   GUI_Client_Conn_Status = True
                                   GUI_IPAddr = data.addr
                                   GUI_sock = sock
                                  # GUI_Port = data.addr[1]
                                  # print(data.addr,GUI_IPAddr,GUI_Port)
                               else :
-                                  self.change_value.emit('GUI Client Already Connected.\n Rejecting Connection Request from :' + str(data.addr))
+                                  self.change_value.emit('GUI Client Already Connected.\nRejecting Connection Request from :' + str(data.addr))
                                   sel.unregister(sock)
                                   sock.close()
                           elif (recv_data[0] == 0xfa):
                               self.change_value.emit('Event Data')
+
 
                       else:
                           self.change_value.emit('closing connection to :' + str(data.addr))
