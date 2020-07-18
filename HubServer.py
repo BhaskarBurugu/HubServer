@@ -7,16 +7,75 @@ from PyQt5.QtCore import QThread, pyqtSignal
 import socket
 import selectors
 import types
+import json
 
+HEADER_INDEX  = 0
+CHANNEL_INDEX = 1
+RTID_INDEX    = 6
+VIBFRQ_INDEX  = 8
+VIBMAG_INDEX  = 10
+TEMP_INDEX    = 14
+MAGN_INDEX    = 17
+
+########################################################################################################################
+#######################################################################################################################
+def Extract_Engg_Values(data):
+    Event = {
+            "Sensorid": "5",
+            "hubip": "192.168.1.100",
+            "channel": "0",
+            "events":
+                {
+                    "type": "VIBRATION",
+                    "vibrationcount": "10",
+                    "temperature": "60"
+                }
+            }
+
+    EventStatus = False
+    if (len(data) >= 22):
+        EventStatus = True
+        RT_ID = ((data[RTID_INDEX] & 0x0f) << 4) + (data[RTID_INDEX + 1] & 0x0f)
+        VibFreq = ((data[VIBFRQ_INDEX] & 0x0f) << 4) + (data[VIBFRQ_INDEX + 1] & 0x0f)
+        VibMag = ((data[VIBMAG_INDEX] & 0x0f) << 12) + ((data[VIBMAG_INDEX + 1] & 0x0f) << 8) + (
+                    (data[VIBMAG_INDEX + 2] & 0x0f) << 4) + (data[VIBMAG_INDEX + 3] & 0x0f)
+        Temp = ((data[TEMP_INDEX] & 0x0f) << 8) + ((data[TEMP_INDEX + 1] & 0x0f) << 4) + (data[TEMP_INDEX + 2] & 0x0f)
+        Magn = True if (data[MAGN_INDEX] & 0x0f) == 0x0f else False
+
+        Event["channel"] = str(data[1])
+        Event["Sensorid"] = str(RT_ID)
+        if (Temp < 229):  # 229 equivalent to 60Deg
+            Event["events"]["type"] = "TEMPERATURE"
+            Event["events"]["vibrationcount"] = str(VibFreq)
+            Event["events"]["temperature"] = str(Temp)
+        elif (Magn == True):
+            Event["events"]["type"] = "MAGNETIC"
+        elif (VibFreq > 5) and (VibMag > 5000):
+            Event["events"]["type"] = "VIBRATION"
+            Event["events"]["vibrationcount"] = str(VibFreq)
+            Event["events"]["temperature"] = str(Temp)
+        else:
+            EventStatus = False
+
+        EventJSON = json.dumps(Event)
+
+    return EventStatus, EventJSON
+########################################################################################################################
+#######################################################################################################################
+#Received Data :b'{"sensorid":"5","hubip":"192.168.1.100","channel":"0","events":{"type":"VIBRATION","vibrationcount":"10","temperature":"60"}}'
+
+#Received Data :b'{"sensorid":"15","hubip":"192.168.1.100","channel":"0","events":{"type":"MAGNETIC","vibrationcount":"10","temperature":"60"}}'
 
 class MyThread(QThread):
     # Create a counter thread
     change_value = pyqtSignal(str)
-
+    ########################################################################################################################
+    #######################################################################################################################
     def __init__(self):
         super().__init__()
         self.StopFlag = False
-
+    ########################################################################################################################
+    #######################################################################################################################
     def run(self):
         GUI_CONNECT = b'I am GUI'
         GUI_Client_Conn_Status = False
@@ -39,7 +98,8 @@ class MyThread(QThread):
        # print('listening on', (host, port))
         lsock.setblocking(False)
         sel.register(lsock, selectors.EVENT_READ, data=None)
-
+        ########################################################################################################################
+        #######################################################################################################################
         def accept_wrapper(sock):
             conn, addr = sock.accept()  # Should be ready to read
             self.change_value.emit('accepted connection from :'+ str(addr))
@@ -76,8 +136,14 @@ class MyThread(QThread):
 
                           #    if(GUI_Client_Conn_Status == True) and (recv_data != GUI_CONNECT):
                           if (GUI_Client_Conn_Status == True) and (recv_data != GUI_CONNECT):
-                              GUI_sock.send(recv_data)
-                              self.change_value.emit('#####   Data Sent to GUI  ######\n')
+                              if (recv_data[0] == 0xfa):
+                                  EventStatus, Event = Extract_Engg_Values(recv_data)
+                                  if EventStatus == True :
+                                     # GUI_sock.send(recv_data)
+                                      GUI_sock.send(bytes(Event,encoding="utf-8"))
+                                      self.change_value.emit('#####  JSON String is  ######\n'+ Event)
+                                  else :
+                                      self.change_value.emit('#####   Invalid Event  ######\n')
                           else:
                               self.change_value.emit('######  GUI Link Down  #######\n')
                           # print(recv_data.hex())
@@ -111,8 +177,11 @@ class MyThread(QThread):
         #('closing Socket')
         sel.unregister(lsock)
         lsock.close()
-       # lsock.shutdown()
+        lsock.shutdown()
 
+########################################################################################################################
+########################################################################################################################
+########################################################################################################################
 class Window(QMainWindow):
     def __init__(self):
         super().__init__()
@@ -130,7 +199,7 @@ class Window(QMainWindow):
         self.show()
       #  self.Text.append("Server Started")
         self.Server_Start()
-
+    #############################################################################################################
     def UiComponents(self):
         self.Text = QTextEdit(self)
         self.Text.move(0, 0)
@@ -148,7 +217,7 @@ class Window(QMainWindow):
         self.button1.clicked.connect(self.Server_Stop)
         self.button2.clicked.connect(self.Clear)
         self.button.setEnabled(False)
-
+    ##############################################################################################################
     def Server_Start(self):
         self.Text.append("Server Started")
         self.button.setEnabled(False)
@@ -158,7 +227,7 @@ class Window(QMainWindow):
         self.thread.change_value.connect(self.setProgressVal)
         self.thread.StopFlag = False
         self.thread.start()
-
+    #############################################################################################################
     def Server_Stop(self):
         self.thread.StopFlag = True
         self.button.setEnabled(True)
@@ -166,14 +235,17 @@ class Window(QMainWindow):
         self.Text.append("Server Disconnected")
         #self.thread.exit()
        #self.ServerStopFlag = True
-
+    ############################################################################################################
     def setProgressVal(self, val):
         self.Text.append(val)
        # print(val)
-
+    #############################################################################################################
     def Clear(self):
         self.Text.clear()
 
+#######################################################################################################################
+#######################################################################################################################
+#######################################################################################################################
 if __name__ == "__main__":
     App = QApplication(sys.argv)
     window = Window()
