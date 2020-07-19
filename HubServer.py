@@ -8,52 +8,88 @@ import socket
 import selectors
 import types
 import json
+import pandas as pd
+from CameraThread import *
+#import math
 
 HEADER_INDEX  = 0
 CHANNEL_INDEX = 1
+IPADDR_INDEX  = 2
 RTID_INDEX    = 6
 VIBFRQ_INDEX  = 8
 VIBMAG_INDEX  = 10
 TEMP_INDEX    = 14
 MAGN_INDEX    = 17
 
+pd_HubConfig = pd.read_csv('HubConfigInfo.csv')
+pd_SensConfig = pd.read_csv('SensorConfigInfo.csv')
+pd_SensConfig = pd.read_csv('SensorConfigInfo.csv')
+pd_SensConfig['HUB ID'] = pd_SensConfig['HUB ID'].fillna('NO IP')
+pd_SensConfig['Camera IP'] = pd_SensConfig['Camera IP'].fillna('NO IP')
+pd_SensConfig['Channel'] = pd_SensConfig['Channel'].fillna(0)
+pd_SensConfig['RT No'] = pd_SensConfig['RT No'].fillna(0)
+pd_SensConfig['Preset'] = pd_SensConfig['Preset'].fillna(0)
 ########################################################################################################################
 #######################################################################################################################
 def Extract_Engg_Values(data):
     Event = {
-            "Sensorid": "5",
-            "hubip": "192.168.1.100",
-            "channel": "0",
-            "events":
-                {
-                    "type": "VIBRATION",
-                    "vibrationcount": "10",
-                    "temperature": "60"
-                }
+        "Sensorid": "5",
+        "hubip": "192.168.1.100",
+        "channel": "0",
+        "events":
+            {
+                "type": "VIBRATION",
+                "vibrationcount": "10",
+                "temperature": "60"
             }
+    }
 
     EventStatus = False
     if (len(data) >= 22):
         EventStatus = True
+        HubIP = str(data[IPADDR_INDEX]) + '.' + str(data[IPADDR_INDEX + 1]) + '.' + str(
+            data[IPADDR_INDEX + 2]) + '.' + str(data[IPADDR_INDEX + 3])
         RT_ID = ((data[RTID_INDEX] & 0x0f) << 4) + (data[RTID_INDEX + 1] & 0x0f)
         VibFreq = ((data[VIBFRQ_INDEX] & 0x0f) << 4) + (data[VIBFRQ_INDEX + 1] & 0x0f)
         VibMag = ((data[VIBMAG_INDEX] & 0x0f) << 12) + ((data[VIBMAG_INDEX + 1] & 0x0f) << 8) + (
                     (data[VIBMAG_INDEX + 2] & 0x0f) << 4) + (data[VIBMAG_INDEX + 3] & 0x0f)
         Temp = ((data[TEMP_INDEX] & 0x0f) << 8) + ((data[TEMP_INDEX + 1] & 0x0f) << 4) + (data[TEMP_INDEX + 2] & 0x0f)
         Magn = True if (data[MAGN_INDEX] & 0x0f) == 0x0f else False
-
+        #  RT_ID      = int(4)
+        # print(HubIP)
+        # print(type(HubIP))
+        Event['hubip'] = HubIP
         Event["channel"] = str(data[1])
         Event["Sensorid"] = str(RT_ID)
+
+        try:
+            CameraIP = pd_SensConfig.loc[(pd_SensConfig['Channel'] == int(Event["channel"])) &
+                                         (pd_SensConfig['RT No'] == int(RT_ID)) & (
+                                                     pd_SensConfig['HUB ID'] == HubIP), 'Camera IP'].values[0]
+        except:
+            CameraIP = float('nan')
+        # print(pd_SensConfig)
+
         if (Temp < 229):  # 229 equivalent to 60Deg
             Event["events"]["type"] = "TEMPERATURE"
             Event["events"]["vibrationcount"] = str(VibFreq)
             Event["events"]["temperature"] = str(Temp)
+
+
         elif (Magn == True):
             Event["events"]["type"] = "MAGNETIC"
+
         elif (VibFreq > 5) and (VibMag > 5000):
             Event["events"]["type"] = "VIBRATION"
             Event["events"]["vibrationcount"] = str(VibFreq)
             Event["events"]["temperature"] = str(Temp)
+
+            if (CameraIP != 'NO IP'):
+                print('Call Camera popup here', CameraIP)
+                myCameraThread(CameraIP=CameraIP,timeout=40,VidAnal=1).start()
+            else:
+                print('Not Valid IP')
+
         else:
             EventStatus = False
 
@@ -132,7 +168,7 @@ class MyThread(QThread):
                       if recv_data:
                           data.inb = recv_data
                           #print('type of recv_data is', data.inb)
-                          self.change_value.emit('Received Data :'+ str(recv_data) +'\nData in Hex Format : '+ str(recv_data.hex()))
+                          #self.change_value.emit('Received Data :'+ str(recv_data) +'\nData in Hex Format : '+ str(recv_data.hex()))
 
                           #    if(GUI_Client_Conn_Status == True) and (recv_data != GUI_CONNECT):
                           if (GUI_Client_Conn_Status == True) and (recv_data != GUI_CONNECT):
@@ -140,8 +176,12 @@ class MyThread(QThread):
                                   EventStatus, Event = Extract_Engg_Values(recv_data)
                                   if EventStatus == True :
                                      # GUI_sock.send(recv_data)
-                                      GUI_sock.send(bytes(Event,encoding="utf-8"))
-                                      self.change_value.emit('#####  JSON String is  ######\n'+ Event)
+                                     GUI_sock.send(bytes(Event,encoding="utf-8"))
+                                     self.change_value.emit('#####  JSON String is  ######\n'+ Event)
+
+                                    # if ((Event['events']['type'] == 'VIBRATION') or (Event['events']['type'] == 'TEMPERATURE')):
+                                     #print(Event['events']['type'])
+
                                   else :
                                       self.change_value.emit('#####   Invalid Event  ######\n')
                           else:
@@ -161,9 +201,6 @@ class MyThread(QThread):
                                   self.change_value.emit('GUI Client Already Connected.\nRejecting Connection Request from :' + str(data.addr))
                                   sel.unregister(sock)
                                   sock.close()
-                          elif (recv_data[0] == 0xfa):
-                              self.change_value.emit('Event Data')
-
 
                       else:
                           self.change_value.emit('closing connection to :' + str(data.addr))
@@ -237,7 +274,7 @@ class Window(QMainWindow):
        #self.ServerStopFlag = True
     ############################################################################################################
     def setProgressVal(self, val):
-        self.Text.append(val)
+        self.Text.setText(val)
        # print(val)
     #############################################################################################################
     def Clear(self):
@@ -247,6 +284,7 @@ class Window(QMainWindow):
 #######################################################################################################################
 #######################################################################################################################
 if __name__ == "__main__":
+
     App = QApplication(sys.argv)
     window = Window()
     sys.exit(App.exec())
