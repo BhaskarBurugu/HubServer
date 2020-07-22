@@ -10,6 +10,7 @@ import types
 import json
 import pandas as pd
 from CameraThread import *
+from AudioThread import *
 #import math
 
 HEADER_INDEX  = 0
@@ -21,14 +22,33 @@ VIBMAG_INDEX  = 10
 TEMP_INDEX    = 14
 MAGN_INDEX    = 17
 
-pd_HubConfig = pd.read_csv('HubConfigInfo.csv')
-pd_SensConfig = pd.read_csv('SensorConfigInfo.csv')
-pd_SensConfig = pd.read_csv('SensorConfigInfo.csv')
-pd_SensConfig['HUB ID'] = pd_SensConfig['HUB ID'].fillna('NO IP')
-pd_SensConfig['Camera IP'] = pd_SensConfig['Camera IP'].fillna('NO IP')
-pd_SensConfig['Channel'] = pd_SensConfig['Channel'].fillna(0)
-pd_SensConfig['RT No'] = pd_SensConfig['RT No'].fillna(0)
-pd_SensConfig['Preset'] = pd_SensConfig['Preset'].fillna(0)
+try :
+    pd_HubConfig = pd.read_csv('HubConfigInfo.csv')
+except :
+    print('HubConfigInfo.csv file missing')
+    exit(1)
+try:
+    pd_SensConfig = pd.read_csv('SensorConfigInfo.csv')
+    pd_SensConfig['HUB ID'] = pd_SensConfig['HUB ID'].fillna('NO IP')
+    pd_SensConfig['Camera IP'] = pd_SensConfig['Camera IP'].fillna('NO IP')
+    pd_SensConfig['Channel'] = pd_SensConfig['Channel'].fillna(0)
+    pd_SensConfig['RT No'] = pd_SensConfig['RT No'].fillna(0)
+    pd_SensConfig['Preset'] = pd_SensConfig['Preset'].fillna(0)
+except :
+    print('SensorConfigInfo.csv file missing')
+    exit(1)
+try :
+    with open('HubCat.JSON') as f:
+        data = json.load(f)
+
+    # Output: {'name': 'Bob', 'languages': ['English', 'Fench']}
+    #print(type(data))
+    print(data)
+    Hubcategory = data["HubCat"]
+    #pd_SensConfig = pd.read_csv('SensorConfigInfo.csv')
+except :
+    print('HubCat.JSON file missing')
+    exit(1)
 ########################################################################################################################
 #######################################################################################################################
 def Extract_Engg_Values(data):
@@ -74,7 +94,12 @@ def Extract_Engg_Values(data):
             Event["events"]["type"] = "TEMPERATURE"
             Event["events"]["vibrationcount"] = str(VibFreq)
             Event["events"]["temperature"] = str(Temp)
-
+            myAudioThread(Event["events"]["type"] + 'event detected').start()
+            if (CameraIP != 'NO IP'):
+                print('Call Camera popup here', CameraIP)
+                myCameraThread(CameraIP=CameraIP, timeout=40, VidAnal=1).start()
+            else:
+                print('Not Valid IP')
 
         elif (Magn == True):
             Event["events"]["type"] = "MAGNETIC"
@@ -83,13 +108,12 @@ def Extract_Engg_Values(data):
             Event["events"]["type"] = "VIBRATION"
             Event["events"]["vibrationcount"] = str(VibFreq)
             Event["events"]["temperature"] = str(Temp)
-
+            myAudioThread(Event["events"]["type"] + 'event detected').start()
             if (CameraIP != 'NO IP'):
                 print('Call Camera popup here', CameraIP)
-                myCameraThread(CameraIP=CameraIP,timeout=40,VidAnal=1).start()
+                myCameraThread(CameraIP=CameraIP,timeout=20,VidAnal=1).start()
             else:
                 print('Not Valid IP')
-
         else:
             EventStatus = False
 
@@ -128,9 +152,9 @@ class MyThread(QThread):
         self.change_value.emit("Your Computer IP Address is:" + IPAddr)
 
         lsock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        lsock.bind((host, port))
+        lsock.bind((IPAddr, port))
         lsock.listen()
-        self.change_value.emit('listening on : (' + str(host) + ' , '+ str(port) +')')
+        self.change_value.emit('listening on : (' + str(IPAddr) + ' , '+ str(port) +')')
        # print('listening on', (host, port))
         lsock.setblocking(False)
         sel.register(lsock, selectors.EVENT_READ, data=None)
@@ -167,21 +191,18 @@ class MyThread(QThread):
                       recv_data = sock.recv(1024)  # Should be ready to read
                       if recv_data:
                           data.inb = recv_data
-                          #print('type of recv_data is', data.inb)
-                          #self.change_value.emit('Received Data :'+ str(recv_data) +'\nData in Hex Format : '+ str(recv_data.hex()))
-
-                          #    if(GUI_Client_Conn_Status == True) and (recv_data != GUI_CONNECT):
                           if (GUI_Client_Conn_Status == True) and (recv_data != GUI_CONNECT):
-                              if (recv_data[0] == 0xfa):
+                              if(Hubcategory == 'SBC'):
+                                  GUI_sock.send(recv_data)
+                                  self.change_value.emit('#####  JSON String is  ######\n' + str(recv_data))
+                                  #self.change_value.emit(recv_data)
+                              elif(Hubcategory == 'FPGA'):
+                                if (recv_data[0] == 0xfa):
                                   EventStatus, Event = Extract_Engg_Values(recv_data)
                                   if EventStatus == True :
                                      # GUI_sock.send(recv_data)
                                      GUI_sock.send(bytes(Event,encoding="utf-8"))
                                      self.change_value.emit('#####  JSON String is  ######\n'+ Event)
-
-                                    # if ((Event['events']['type'] == 'VIBRATION') or (Event['events']['type'] == 'TEMPERATURE')):
-                                     #print(Event['events']['type'])
-
                                   else :
                                       self.change_value.emit('#####   Invalid Event  ######\n')
                           else:
@@ -214,7 +235,7 @@ class MyThread(QThread):
         #('closing Socket')
         sel.unregister(lsock)
         lsock.close()
-        lsock.shutdown()
+
 
 ########################################################################################################################
 ########################################################################################################################
@@ -274,7 +295,7 @@ class Window(QMainWindow):
        #self.ServerStopFlag = True
     ############################################################################################################
     def setProgressVal(self, val):
-        self.Text.setText(val)
+        self.Text.append(val)
        # print(val)
     #############################################################################################################
     def Clear(self):

@@ -1,4 +1,4 @@
-#!c:\users\u104tu\pycharmprojects\hubserver\venv\scripts\python.exe
+#!c:\users\u104tu\pycharmprojects\hubs\venv\scripts\python.exe
 # EASY-INSTALL-ENTRY-SCRIPT: 'future==0.18.2','console_scripts','futurize'
 import re
 import sys
