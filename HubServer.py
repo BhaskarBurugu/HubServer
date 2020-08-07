@@ -225,24 +225,24 @@ class MyThread(QThread):
           #  time.sleep(1)
            # self.change_value.emit(cnt)
           try :
-            print(cnt)
             events = sel.select(timeout=1)
-            print(cnt)
-            cnt = (cnt + 1) % 99999
           except :
               print("error")
           #print(events)
-          print(cnt)
           for key, mask in events:
-              if key.data is None:
-                  #print(key.fileobj)
-                  conn, addr1 = accept_wrapper(key.fileobj)
-              #    print(conn,addr1)
-              else:
-                  sock = key.fileobj
-                  data = key.data
-                  # data = service_connection(key, mask)
-                  if mask & selectors.EVENT_READ:
+             # print('for loop')
+             # print(key)
+              try:
+                if key.data is None:
+                    #print('if condition')
+                   #print(key.fileobj)
+                    conn, addr1 = accept_wrapper(key.fileobj)
+                    #    print(conn,addr1)
+                else:
+                    sock = key.fileobj
+                    data = key.data
+                    # data = service_connection(key, mask)
+                    if mask & selectors.EVENT_READ:
                       recv_data = sock.recv(1024)  # Should be ready to read
                       if recv_data:
                           data.inb = recv_data
@@ -287,6 +287,14 @@ class MyThread(QThread):
                               self.change_value.emit('GUI_Client Closed' )
                           sel.unregister(sock)
                           sock.close()
+              except:
+                  print('If Error')
+                  print(key.fileobj)
+                  s1 = key.fileobj
+                  sel.unregister(s1)
+                  s1.close()
+                  print('Socket Closed')
+
         #('closing Socket')
         sel.unregister(lsock)
         lsock.close()
