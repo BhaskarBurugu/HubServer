@@ -25,8 +25,9 @@ class VideoStreamWidget(object):
         self.stopFlag = False
         t1 = time.perf_counter()
         t2 = time.perf_counter()
-
-        if(capture.isOpened()):
+        print('Camera Streaming Widget')
+        #if(capture.isOpened()):
+        if(True):
             i = 0
             ret, face_frame = capture.read()
             while (t2 - t1) < self.timeout :
@@ -70,10 +71,12 @@ class VideoStreamWidget(object):
                 elif(key == ord('c')):
                     t1 =  time.perf_counter()
                     t2 = t1
-                   # print('extended')
+                    print('extended')
             # When everything done, release the capture
             capture.release()
             cv2.destroyAllWindows()
+      #  else:
+      #      print('Unable to open Camera Port')
 ######################################################################################################################
 if __name__ == '__main__':
     timeout = 40

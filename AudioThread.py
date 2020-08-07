@@ -35,3 +35,4 @@ class myAudioThread(threading.Thread):
 
 ########################################################################################################################
 #myAudioThread('hai Bhaskar').start()
+#pyinstaller --hidden-import=pyttsx3.drivers --hidden-import=pyttsx3.drivers.dummy --hidden-import=pyttsx3.drivers.espeak --hidden-import=pyttsx3.drivers.nsss --hidden-import=pyttsx3.drivers.sapi5

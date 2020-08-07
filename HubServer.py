@@ -1,3 +1,4 @@
+#######################################################################################################################
 from PyQt5.QtWidgets import QApplication, QMainWindow, QPushButton,QTextEdit
 import sys
 from PyQt5 import QtGui
@@ -12,7 +13,7 @@ import pandas as pd
 from CameraThread import *
 from AudioThread import *
 #import math
-
+#######################################################################################################################
 HEADER_INDEX  = 0
 CHANNEL_INDEX = 1
 IPADDR_INDEX  = 2
@@ -21,12 +22,12 @@ VIBFRQ_INDEX  = 8
 VIBMAG_INDEX  = 10
 TEMP_INDEX    = 14
 MAGN_INDEX    = 17
-
-try :
-    pd_HubConfig = pd.read_csv('HubConfigInfo.csv')
-except :
-    print('HubConfigInfo.csv file missing')
-    exit(1)
+#######################################################################################################################
+#try :
+#    pd_HubConfig = pd.read_csv('HubConfigInfo.csv')
+#except :
+#    print('HubConfigInfo.csv file missing')
+#    exit(1)
 try:
     pd_SensConfig = pd.read_csv('SensorConfigInfo.csv')
     pd_SensConfig['HUB ID'] = pd_SensConfig['HUB ID'].fillna('NO IP')
@@ -40,7 +41,6 @@ except :
 try :
     with open('HubCat.JSON') as f:
         data = json.load(f)
-
     # Output: {'name': 'Bob', 'languages': ['English', 'Fench']}
     #print(type(data))
     print(data)
@@ -49,11 +49,53 @@ try :
 except :
     print('HubCat.JSON file missing')
     exit(1)
+#######################################################################################################################
+def ExtractJSONData(data):
+    #print(data)
+    Event = json.loads(data)
+    print(Event)
+    try :
+        print(Event["sensorid"])
+    except :
+        return 1
+    Event_Validity = True
+    try:
+        CameraIP = pd_SensConfig.loc[(pd_SensConfig['Channel'] == int(Event["channel"])) &
+                                 (pd_SensConfig['RT No'] == int(Event["sensorid"])) & (
+                                         pd_SensConfig['HUB ID'] == Event["hubip"]), 'Camera IP'].values[0]
+        print(CameraIP)
+    except:
+        CameraIP = 'NAN'
+        Event_Validity = False
+        #print('Except', CameraIP)
+    # print(pd_SensConfig)
+    if(Event_Validity == False):
+        myAudioThread('Invalid Event').start()
+        return
+    if (Event["events"]["temperature"] >= '60'):  # 229 equivalent to 60Deg
+        myAudioThread(Event["events"]["type"] + 'event detected').start()
+        if (CameraIP != 'NO IP'):
+            print('Call Camera popup here', CameraIP)
+            myCameraThread(CameraIP=CameraIP, timeout=40, VidAnal=1).start()
+        else:
+            print('Not Valid IP')
+
+    elif (Event["events"]["type"] == "MAGNETIC"):
+        myAudioThread(Event["events"]["type"] + 'event detected').start()
+
+    elif (Event["events"]["vibrationcount"] > '5') :
+        myAudioThread(Event["events"]["type"] + 'event detected').start()
+        if (CameraIP != 'NO IP'):
+            print('Call Camera popup here', CameraIP)
+            myCameraThread(CameraIP=CameraIP, timeout=40, VidAnal='Normal').start()
+        else:
+            print('Not Valid IP')
+    return 5
 ########################################################################################################################
 #######################################################################################################################
 def Extract_Engg_Values(data):
     Event = {
-        "Sensorid": "5",
+        "sensorid": "5",
         "hubip": "192.168.1.100",
         "channel": "0",
         "events":
@@ -80,7 +122,7 @@ def Extract_Engg_Values(data):
         # print(type(HubIP))
         Event['hubip'] = HubIP
         Event["channel"] = str(data[1])
-        Event["Sensorid"] = str(RT_ID)
+        Event["sensorid"] = str(RT_ID)
 
         try:
             CameraIP = pd_SensConfig.loc[(pd_SensConfig['Channel'] == int(Event["channel"])) &
@@ -103,15 +145,16 @@ def Extract_Engg_Values(data):
 
         elif (Magn == True):
             Event["events"]["type"] = "MAGNETIC"
+            myAudioThread(Event["events"]["type"] + 'event detected').start()
 
-        elif (VibFreq > 5) and (VibMag > 5000):
+        elif (VibFreq > 3) and (VibMag > 5000):
             Event["events"]["type"] = "VIBRATION"
             Event["events"]["vibrationcount"] = str(VibFreq)
-            Event["events"]["temperature"] = str(Temp)
+            Event["events"]["temperature"] = '30'#str(Temp)
             myAudioThread(Event["events"]["type"] + 'event detected').start()
             if (CameraIP != 'NO IP'):
                 print('Call Camera popup here', CameraIP)
-                myCameraThread(CameraIP=CameraIP,timeout=20,VidAnal=1).start()
+                myCameraThread(CameraIP=CameraIP,timeout=40,VidAnal='Normal').start()
             else:
                 print('Not Valid IP')
         else:
@@ -123,19 +166,18 @@ def Extract_Engg_Values(data):
 ########################################################################################################################
 #######################################################################################################################
 #Received Data :b'{"sensorid":"5","hubip":"192.168.1.100","channel":"0","events":{"type":"VIBRATION","vibrationcount":"10","temperature":"60"}}'
-
 #Received Data :b'{"sensorid":"15","hubip":"192.168.1.100","channel":"0","events":{"type":"MAGNETIC","vibrationcount":"10","temperature":"60"}}'
 
 class MyThread(QThread):
     # Create a counter thread
     change_value = pyqtSignal(str)
-    ########################################################################################################################
-    #######################################################################################################################
+    ####################################################################################################################
+    ####################################################################################################################
     def __init__(self):
         super().__init__()
         self.StopFlag = False
-    ########################################################################################################################
-    #######################################################################################################################
+    ####################################################################################################################
+    ####################################################################################################################
     def run(self):
         GUI_CONNECT = b'I am GUI'
         GUI_Client_Conn_Status = False
@@ -143,24 +185,29 @@ class MyThread(QThread):
         GUI_Port = 5410                 # Dummy Values
 
         sel = selectors.DefaultSelector()
-        #host = '192.168.1.150'  # Standard loopback interface address (localhost)
+        host = '192.168.1.150'  # Standard loopback interface address (localhost)
         #host = 'DESKTOP-E9LCLCN'  # Standard loopback interface address (localhost)
-        port = 6666  # Port to listen on (non-privileged ports are > 1023)
-        host = socket.gethostname()
-        IPAddr = socket.gethostbyname(host)
+        port = 5555  # Port to listen on (non-privileged ports are > 1023)
+       # host = socket.gethostname()
+        #IPAddr = socket.gethostbyname(host)
+        IPAddr = "192.168.1.150"
         self.change_value.emit("Your Computer Name is:" + host)
         self.change_value.emit("Your Computer IP Address is:" + IPAddr)
 
         lsock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        lsock.settimeout(1)
+        lsock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         lsock.bind((IPAddr, port))
         lsock.listen()
         self.change_value.emit('listening on : (' + str(IPAddr) + ' , '+ str(port) +')')
        # print('listening on', (host, port))
         lsock.setblocking(False)
-        sel.register(lsock, selectors.EVENT_READ, data=None)
-        ########################################################################################################################
-        #######################################################################################################################
+        sel.register(lsock, selectors.EVENT_READ | selectors.EVENT_WRITE, data=None)
+
+        ################################################################################################################
+        ################################################################################################################
         def accept_wrapper(sock):
+           # print('trying for connection')
             conn, addr = sock.accept()  # Should be ready to read
             self.change_value.emit('accepted connection from :'+ str(addr))
             #print('accepted connection from', addr)
@@ -171,18 +218,26 @@ class MyThread(QThread):
             return conn, addr
 
         events = selectors.EVENT_READ | selectors.EVENT_WRITE
-
         cnt = 0
         #while cnt < 100:
         while self.StopFlag == False :
           #  cnt+=1
           #  time.sleep(1)
            # self.change_value.emit(cnt)
-          events = sel.select(timeout=1)
+          try :
+            print(cnt)
+            events = sel.select(timeout=1)
+            print(cnt)
+            cnt = (cnt + 1) % 99999
+          except :
+              print("error")
           #print(events)
+          print(cnt)
           for key, mask in events:
               if key.data is None:
+                  #print(key.fileobj)
                   conn, addr1 = accept_wrapper(key.fileobj)
+              #    print(conn,addr1)
               else:
                   sock = key.fileobj
                   data = key.data
@@ -194,6 +249,7 @@ class MyThread(QThread):
                           if (GUI_Client_Conn_Status == True) and (recv_data != GUI_CONNECT):
                               if(Hubcategory == 'SBC'):
                                   GUI_sock.send(recv_data)
+                                  ExtractJSONData(recv_data)
                                   self.change_value.emit('#####  JSON String is  ######\n' + str(recv_data))
                                   #self.change_value.emit(recv_data)
                               elif(Hubcategory == 'FPGA'):
@@ -222,7 +278,6 @@ class MyThread(QThread):
                                   self.change_value.emit('GUI Client Already Connected.\nRejecting Connection Request from :' + str(data.addr))
                                   sel.unregister(sock)
                                   sock.close()
-
                       else:
                           self.change_value.emit('closing connection to :' + str(data.addr))
                          # print('GUI',GUI_IPAddr,GUI_Port)
@@ -235,9 +290,6 @@ class MyThread(QThread):
         #('closing Socket')
         sel.unregister(lsock)
         lsock.close()
-
-
-########################################################################################################################
 ########################################################################################################################
 ########################################################################################################################
 class Window(QMainWindow):
@@ -250,6 +302,7 @@ class Window(QMainWindow):
         height = 600
         iconName = "icon.png"
         self.ServerStopFlag = False
+        self.ClearDispCount = 0
         self.setWindowTitle(title)
         self.setWindowIcon(QtGui.QIcon(iconName))
         self.setGeometry(left,  top, width, height)
@@ -257,7 +310,7 @@ class Window(QMainWindow):
         self.show()
       #  self.Text.append("Server Started")
         self.Server_Start()
-    #############################################################################################################
+    ###################################################################################################################
     def UiComponents(self):
         self.Text = QTextEdit(self)
         self.Text.move(0, 0)
@@ -275,7 +328,7 @@ class Window(QMainWindow):
         self.button1.clicked.connect(self.Server_Stop)
         self.button2.clicked.connect(self.Clear)
         self.button.setEnabled(False)
-    ##############################################################################################################
+    ###################################################################################################################
     def Server_Start(self):
         self.Text.append("Server Started")
         self.button.setEnabled(False)
@@ -285,7 +338,7 @@ class Window(QMainWindow):
         self.thread.change_value.connect(self.setProgressVal)
         self.thread.StopFlag = False
         self.thread.start()
-    #############################################################################################################
+    ###################################################################################################################
     def Server_Stop(self):
         self.thread.StopFlag = True
         self.button.setEnabled(True)
@@ -293,19 +346,27 @@ class Window(QMainWindow):
         self.Text.append("Server Disconnected")
         #self.thread.exit()
        #self.ServerStopFlag = True
-    ############################################################################################################
+    ###################################################################################################################
     def setProgressVal(self, val):
-        self.Text.append(val)
+        if(self.ClearDispCount >10):
+            self.ClearDispCount = 0
+            self.Text.clear()
+            self.Text.setText(val)
+        else:
+            self.Text.append(val)
+        self.ClearDispCount = self.ClearDispCount + 1
+        #self.Text.setText(val)
        # print(val)
-    #############################################################################################################
+    ###################################################################################################################
     def Clear(self):
         self.Text.clear()
 
 #######################################################################################################################
 #######################################################################################################################
-#######################################################################################################################
 if __name__ == "__main__":
-
     App = QApplication(sys.argv)
     window = Window()
-    sys.exit(App.exec())
+    try:
+        sys.exit(App.exec())
+    except:
+        print("ERRRRR")

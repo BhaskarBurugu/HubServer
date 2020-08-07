@@ -13,7 +13,11 @@ class myCameraThread(threading.Thread):
       self.VidAnal = VidAnal
 
    def run(self):
-        VideoStreamWidget(self.CameraIP,self.timeout,self.VidAnal)
+       try:
+            VideoStreamWidget(self.CameraIP,self.timeout,self.VidAnal)
+            print('Exit from Video play')
+       except AttributeError:
+           pass
 
 def mainprog():
     # Create new threads
