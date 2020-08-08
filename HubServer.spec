@@ -3,7 +3,7 @@
 block_cipher = None
 
 
-a = Analysis(['HubServer.py'],
+a = Analysis(['Hubserver.py'],
              pathex=['C:\\Users\\U104TU\\PycharmProjects\\HubServer'],
              binaries=[],
              datas=[],
@@ -21,7 +21,7 @@ exe = EXE(pyz,
           a.scripts,
           [],
           exclude_binaries=True,
-          name='HubServer',
+          name='Hubserver',
           debug=False,
           bootloader_ignore_signals=False,
           strip=False,
@@ -34,4 +34,4 @@ coll = COLLECT(exe,
                strip=False,
                upx=True,
                upx_exclude=[],
-               name='HubServer')
+               name='Hubserver')
