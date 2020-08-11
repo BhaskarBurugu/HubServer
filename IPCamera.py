@@ -1,6 +1,6 @@
 import cv2
 import time
-
+from ONVIFCameraControl import ONVIFCameraControl  # import ONVIFCameraControlError to catch errors
 #stream_link = 'rtsp://admin:admin@192.168.1.23:554/cam/realmonitor?channel=1&subtype=0'
 # multiple cascades: https://github.com/Itseez/opencv/tree/master/data/haarcascades
 
@@ -10,12 +10,15 @@ face_cascade = cv2.CascadeClassifier('haarcascade_frontalface_default.xml')
 eye_cascade = cv2.CascadeClassifier('haarcascade_eye.xml')
 ######################################################################################################################
 class VideoStreamWidget(object):
-    def __init__(self, CamIP='0',timeout = 40, VidAnal = 'Normal'):
+    def __init__(self, CamIP='0',timeout = 40, VidAnal = 'Normal',preset = 'home'):
         # Create a VideoCapture object
         if (CamIP == '0'):
             self.CameraTitle = 'USB Camera'
             stream_link = 0
         else :
+            mycam = ONVIFCameraControl((CamIP, 80), "admin", "admin")
+            mycam.goto_preset(preset_token=preset)
+
             self.CameraTitle = 'IP Camera :' + CamIP
             stream_link = f'rtsp://admin:admin@{CamIP}:554/cam/realmonitor?channel=1&subtype=0'
         capture = cv2.VideoCapture(stream_link)
@@ -26,6 +29,10 @@ class VideoStreamWidget(object):
         t1 = time.perf_counter()
         t2 = time.perf_counter()
         print('Camera Streaming Widget')
+        key = '1'
+        WIDTH = 400
+        HEIGHT= 300
+        window_z = 'Normal'
         #if(capture.isOpened()):
         if(True):
             i = 0
@@ -37,7 +44,7 @@ class VideoStreamWidget(object):
                 ret, frame = capture.read()
                # cv2.imshow(self.CameraTitle, frame)
                 # Our operations on the frame come here
-                gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+               # gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
                # if(VidAnal == 'Normal'):
                     # Display the resulting frame
                #     cv2.imshow(self.CameraTitle, frame)
@@ -53,25 +60,39 @@ class VideoStreamWidget(object):
                 # font
                 font = cv2.FONT_HERSHEY_SIMPLEX
                 # org
-                org = (50,20)
+                org = (20,20)
                 # fontScale
-                fontScale = 0.6
+                fontScale = 0.4
                 # Blue color in BGR
-                color = (0, 0, 250)
+                color = (240, 0, 0)
                 # Line thickness of 2 px
-                thickness = 2
+                thickness = 1
                 # Using cv2.putText() method
-                frame = cv2.putText(frame, 'Press q to quit, c to continue ' + '(Timeout: {:.2f})'.format(40-(t2-t1)), org, font, fontScale, color, thickness, cv2.LINE_AA)
-                cv2.imshow(self.CameraTitle, frame)
+                #text = 'Press q to quit, c to continue' + '(Timeout: {:.2f})'.format(40-(t2-t1)), org, font, fontScale, color, thickness, cv2.LINE_AA
+                frame = cv2.putText(frame, 'Press q to quit, c to continue\n' + '(Timeout: {:.2f})'.format(40-(t2-t1)), org, font, fontScale, color, thickness, cv2.LINE_AA)
+                #print(text)
+                cv2.resizeWindow(self.CameraTitle, WIDTH, HEIGHT)
+                cv2.namedWindow(self.CameraTitle, cv2.WINDOW_KEEPRATIO)
 
+                cv2.imshow(self.CameraTitle, frame)
                 key = cv2.waitKey(1) & 0xFF
                # if cv2.waitKey(1) & 0xFF == ord('q'):
-                if(key == ord('q')):
+                if(key == ord('q')) or (key == ord('Q')):
                     break
-                elif(key == ord('c')):
+                elif(key == ord('c')) or (key == ord('C')):
                     t1 =  time.perf_counter()
                     t2 = t1
                     print('extended')
+                elif(key == ord('f')) or (key == ord('F')):
+                    VidAnal = 'FaceDetect'
+                elif(key == ord('n')) or (key == ord('N')):
+                    VidAnal = 'Normal'
+                elif(key == ord('z')) or (key == ord('Z')):
+                    WIDTH = 800
+                    HEIGHT = 480
+                elif (key == ord('u')) or (key == ord('U')):
+                    WIDTH = 400
+                    HEIGHT = 260
             # When everything done, release the capture
             capture.release()
             cv2.destroyAllWindows()
@@ -81,5 +102,5 @@ class VideoStreamWidget(object):
 if __name__ == '__main__':
     timeout = 40
     VidAnal = 'Normal'
-    VideoStreamWidget('192.168.1.23', timeout, VidAnal)
+    VideoStreamWidget('192.168.1.23', timeout, VidAnal='Normal',preset='home')
    # print('Hello')

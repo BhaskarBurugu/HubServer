@@ -95,19 +95,17 @@ def ExtractJSONData(data):
 #######################################################################################################################
 def Extract_Engg_Values(data):
     Event = {
-        "sensorid":"0",
-        "hubip":"192.168.1.100",
-        "channel":"0",
-        "events":{"type":"VIBRATION",
-                "vibrationcount":"10",
-                "temperature":"60"}
-        }
-    sensorid = '0'
-    hubip = "192.168.1.150"
-    channel = '0'
-    event_type = "VIBRATION"
-    vibration_count = '0'
-    temperature = '30'
+        "sensorid": "5",
+        "hubip": "192.168.1.100",
+        "channel": "0",
+        "events":
+            {
+                "type": "VIBRATION",
+                "vibrationcount": "10",
+                "temperature": "60"
+            }
+    }
+    CameraPreset = 'home'
     EventStatus = False
     if (len(data) >= 22):
         EventStatus = True
@@ -123,59 +121,58 @@ def Extract_Engg_Values(data):
         # print(HubIP)
         # print(type(HubIP))
         Event['hubip'] = HubIP
-        hubip = HubIP
-        Event["channel"] = str(data[1]-1)
-        channel = str(data[1] - 1)
+        Event["channel"] = str(data[1] - 1)
         Event["sensorid"] = str(RT_ID)
-        sensorid = str(RT_ID)
 
         try:
             CameraIP = pd_SensConfig.loc[(pd_SensConfig['Channel'] == int(Event["channel"])) &
                                          (pd_SensConfig['RT No'] == int(RT_ID)) & (
                                                      pd_SensConfig['HUB ID'] == HubIP), 'Camera IP'].values[0]
+
+            CameraPreset = pd_SensConfig.loc[(pd_SensConfig['Channel'] == int(Event["channel"])) &
+                                         (pd_SensConfig['RT No'] == int(RT_ID)) & (
+                                                     pd_SensConfig['HUB ID'] == HubIP), 'Preset'].values[0]
         except:
             CameraIP = float('nan')
+            print(CameraPreset)
         # print(pd_SensConfig)
-
         if (Temp < 229):  # 229 equivalent to 60Deg
             Event["events"]["type"] = "TEMPERATURE"
-            event_type = "TEMPERATURE"
             Event["events"]["vibrationcount"] = str(VibFreq)
-            vibration_count = str(VibFreq)
             Event["events"]["temperature"] = str(Temp)
-            temperature = str(Temp)
             myAudioThread(Event["events"]["type"] + 'event detected').start()
             if (CameraIP != 'NO IP'):
                 print('Call Camera popup here', CameraIP)
-                myCameraThread(CameraIP=CameraIP, timeout=40, VidAnal=1).start()
+                myCameraThread(CameraIP=CameraIP, timeout = 40, VidAnal = 1, preset=CameraPreset).start()
             else:
                 print('Not Valid IP')
 
         elif (Magn == True):
             Event["events"]["type"] = "MAGNETIC"
-            event_type =  "MAGNETIC"
             myAudioThread(Event["events"]["type"] + 'event detected').start()
 
-        elif (VibFreq > 3) and (VibMag > 5000):
+        elif ((VibFreq > 4) and (VibMag > 3000)) or (VibMag > 5000):
             Event["events"]["type"] = "VIBRATION"
-            event_type = "VIBRATION"
             Event["events"]["vibrationcount"] = str(VibFreq)
-            vibration_count = str(VibFreq)
             Event["events"]["temperature"] = '30'#str(Temp)
-            temperature = "30"
             myAudioThread(Event["events"]["type"] + 'event detected').start()
             if (CameraIP != 'NO IP'):
                 print('Call Camera popup here', CameraIP)
-                myCameraThread(CameraIP=CameraIP,timeout=40,VidAnal='Normal').start()
+                myCameraThread(CameraIP=CameraIP,timeout=40,VidAnal='Normal', preset = CameraPreset).start()
             else:
                 print('Not Valid IP')
         else:
             EventStatus = False
-    #EventJSON = f"{{\"sensorid\":\"{sensorid}\",\"hubip\":\"{hubip}\",\"channel\":\"{channel}\",\"events\":{{type\":\"{event_type}\",\"vibrationcount\":\"{vibration_count}\",\"temperature\":\"{temperature}\"}}}}"
-    #EventJSON = f"\"{{\\\"sensorid\\\":\\\"{sensorid}\\\",\\\"hubip\\\":\\\"{hubip}\\\",\\\"channel\\\":\\\"{channel}\\\",\\\"events\\\":{{\\\"type\\\":\\\"{event_type}\\\",\\\"vibrationcount\\\":\\\"{vibration_count}\\\",\\\"temperature\\\":\\\"{temperature}\\\"}}}}\""
+            if VibFreq != 0 :
+                print('#################')
+                print('Sensor Id     : ', RT_ID)
+                print('Channel No    : ', Event["channel"])
+                print('Hub Ip        : ', HubIP)
+                print('Vibration Freq: ',VibFreq)
+                print('Vibration Mag : ',VibMag)
+                print('Temperature   : ',Temp)
 
     EventJSON = json.dumps(Event)
-
     return EventStatus, EventJSON
 ########################################################################################################################
 #######################################################################################################################
@@ -271,13 +268,10 @@ class MyThread(QThread):
                                   EventStatus, Event = Extract_Engg_Values(recv_data)
                                   if EventStatus == True :
                                      # GUI_sock.send(recv_data)
-                                     xx = bytes(Event,'utf-8')
-                                     print(xx)
-                                     #GUI_sock.send(bytes(Event,encoding="utf-8"))
-                                     GUI_sock.send(xx)
-                                     self.change_value.emit('#####  JSON String is  ######\n' + Event)
-                                  else :
-                                      self.change_value.emit('#####   Invalid Event  ######\n')
+                                     GUI_sock.send(bytes(Event,encoding="utf-8"))
+                                     self.change_value.emit('#####  JSON String is  ######\n'+ Event)
+                                  #else :
+                                  #    self.change_value.emit('#####   Invalid Event  ######\n')
                           else:
                               self.change_value.emit('######  GUI Link Down  #######\n')
                           # print(recv_data.hex())
@@ -320,7 +314,7 @@ class MyThread(QThread):
 class Window(QMainWindow):
     def __init__(self):
         super().__init__()
-        title = "Multi-Vibration Sensor Server - version beta-01"
+        title = "Multi-Vibration Sensor Server"
         left = 500
         top = 300
         width = 800
@@ -395,4 +389,3 @@ if __name__ == "__main__":
         sys.exit(App.exec())
     except:
         print("ERRRRR")
-# pyinstaller --hidden-import=pyttsx3.drivers --hidden-import=pyttsx3.drivers.dummy --hidden-import=pyttsx3.drivers.espeak --hidden-import=pyttsx3.drivers.nsss --hidden-import=pyttsx3.drivers.sapi5
