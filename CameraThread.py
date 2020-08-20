@@ -6,16 +6,16 @@ from IPCamera import *
 exitFlag = 0
 
 class myCameraThread(threading.Thread):
-   def __init__(self, CameraIP, timeout, VidAnal,preset):
+   def __init__(self, CameraIP, timeout, VidAnal):
       threading.Thread.__init__(self)
       self.CameraIP = CameraIP
       self.timeout = timeout
       self.VidAnal = VidAnal
-      self.preset = preset
+      #self.preset = preset
 
    def run(self):
        try:
-            VideoStreamWidget(self.CameraIP,self.timeout,self.VidAnal,self.preset)
+            VideoStreamWidget(self.CameraIP,self.timeout,self.VidAnal)
             print('Exit from Video play')
        except AttributeError:
            pass

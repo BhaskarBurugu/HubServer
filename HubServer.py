@@ -143,7 +143,7 @@ def Extract_Engg_Values(data):
             myAudioThread(Event["events"]["type"] + 'event detected').start()
             if (CameraIP != 'NO IP'):
                 print('Call Camera popup here', CameraIP)
-                myCameraThread(CameraIP=CameraIP, timeout = 40, VidAnal = 1, preset=CameraPreset).start()
+                myCameraThread(CameraIP=CameraIP, timeout = 40, VidAnal = 1).start()
             else:
                 print('Not Valid IP')
 
@@ -158,7 +158,7 @@ def Extract_Engg_Values(data):
             myAudioThread(Event["events"]["type"] + 'event detected').start()
             if (CameraIP != 'NO IP'):
                 print('Call Camera popup here', CameraIP)
-                myCameraThread(CameraIP=CameraIP,timeout=40,VidAnal='Normal', preset = CameraPreset).start()
+                myCameraThread(CameraIP=CameraIP,timeout=40,VidAnal='Normal').start()
             else:
                 print('Not Valid IP')
         else:
