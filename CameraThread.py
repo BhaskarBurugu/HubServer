@@ -26,12 +26,14 @@ def mainprog():
     #stream_link ='rtsp://admin:admin@192.168.1.23:554/cam/realmonitor?channel=1&subtype=0'
     while (i<2):
         if i == 1 :
-            myCameraThread('0', 20, 1,'1').start()
+            myCameraThread('0', 20, 1).start()
             #thread1.start()
         else :
-            myCameraThread('192.168.1.23', 40, 2,'1').start()
+            myCameraThread('192.168.1.23', 40, 2).start()
             #thread2.start()
     # thread2 = myThread(2, "Thread-2", 2)
         i = i + 1
 
-#mainprog()
+
+if __name__ == '__main__':
+    mainprog()

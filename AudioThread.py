@@ -34,5 +34,9 @@ class myAudioThread(threading.Thread):
  #   print('Exit')
 
 ########################################################################################################################
+if __name__ == '__main__':
+    myAudioThread('hai Bhaskar').start()
+
+
 #myAudioThread('hai Bhaskar').start()
 #pyinstaller --hidden-import=pyttsx3.drivers --hidden-import=pyttsx3.drivers.dummy --hidden-import=pyttsx3.drivers.espeak --hidden-import=pyttsx3.drivers.nsss --hidden-import=pyttsx3.drivers.sapi5

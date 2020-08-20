@@ -4,7 +4,7 @@ block_cipher = None
 
 
 a = Analysis(['HubServer.py'],
-             pathex=['C:\\Users\\U104TU\\Documents\\GitHub\\HubServer'],
+             pathex=['C:\\Users\\U104TU\\PycharmProjects\\MultiHubServer'],
              binaries=[],
              datas=[],
              hiddenimports=['pyttsx3.drivers', 'pyttsx3.drivers.dummy', 'pyttsx3.drivers.espeak', 'pyttsx3.drivers.nsss', 'pyttsx3.drivers.sapi5'],

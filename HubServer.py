@@ -1,5 +1,6 @@
 #######################################################################################################################
 from PyQt5.QtWidgets import QApplication, QMainWindow, QPushButton,QTextEdit
+from ONVIFCameraControl import ONVIFCameraControl  # import ONVIFCameraControlError to catch errors
 import sys
 from PyQt5 import QtGui
 from PyQt5.QtCore import QRect
@@ -22,6 +23,8 @@ VIBFRQ_INDEX  = 8
 VIBMAG_INDEX  = 10
 TEMP_INDEX    = 14
 MAGN_INDEX    = 17
+CAM_DWELL_TIME  = 60
+CAM_HOLD_TIME   = 40
 #######################################################################################################################
 #try :
 #    pd_HubConfig = pd.read_csv('HubConfigInfo.csv')
@@ -35,6 +38,11 @@ try:
     pd_SensConfig['Channel'] = pd_SensConfig['Channel'].fillna(0)
     pd_SensConfig['RT No'] = pd_SensConfig['RT No'].fillna(0)
     pd_SensConfig['Preset'] = pd_SensConfig['Preset'].fillna(0)
+
+    CamList = pd_SensConfig['Camera IP'].unique()
+    pd_Camera = pd.DataFrame(CamList,columns=['IPAddr'])
+    pd_Camera['LastAccTime'] = pd.Series([(time.perf_counter() - 60) for x in range(len(pd_Camera.index))])
+
 except :
     print('SensorConfigInfo.csv file missing')
     exit(1)
@@ -140,10 +148,22 @@ def Extract_Engg_Values(data):
             Event["events"]["type"] = "TEMPERATURE"
             Event["events"]["vibrationcount"] = str(VibFreq)
             Event["events"]["temperature"] = str(Temp)
-            myAudioThread(Event["events"]["type"] + 'event detected').start()
             if (CameraIP != 'NO IP'):
-                print('Call Camera popup here', CameraIP)
-                myCameraThread(CameraIP=CameraIP, timeout = 40, VidAnal = 1).start()
+                last_acc_time = pd_Camera.loc[(pd_Camera['IPAddr'] == CameraIP), 'LastAccTime'].values[0]
+                #print(pd_Camera)
+                cur_time = time.perf_counter()
+                #print(cur_time - last_acc_time)
+                if ((cur_time - last_acc_time) > CAM_DWELL_TIME) :
+                    mycam = ONVIFCameraControl((CameraIP, 80), "admin", "admin")
+                    mycam.goto_preset(preset_token=CameraPreset)
+                    print('Call Camera popup here', CameraIP)
+                    myCameraThread(CameraIP=CameraIP,timeout=CAM_HOLD_TIME,VidAnal='Normal').start()
+                    CamIndex = pd_Camera.index[pd_Camera['IPAddr'] == CameraIP][0]
+                    pd_Camera.iloc[CamIndex, pd_Camera.columns.get_loc('LastAccTime')] = time.perf_counter()
+                    myAudioThread(Event["events"]["type"] + 'event detected').start()
+
+                else :
+                    print(CameraIP,'Time Lapsed is :',cur_time - last_acc_time)
             else:
                 print('Not Valid IP')
 
@@ -155,10 +175,23 @@ def Extract_Engg_Values(data):
             Event["events"]["type"] = "VIBRATION"
             Event["events"]["vibrationcount"] = str(VibFreq)
             Event["events"]["temperature"] = '30'#str(Temp)
-            myAudioThread(Event["events"]["type"] + 'event detected').start()
+
             if (CameraIP != 'NO IP'):
-                print('Call Camera popup here', CameraIP)
-                myCameraThread(CameraIP=CameraIP,timeout=40,VidAnal='Normal').start()
+                last_acc_time = pd_Camera.loc[(pd_Camera['IPAddr'] == CameraIP), 'LastAccTime'].values[0]
+                #print(pd_Camera)
+                cur_time = time.perf_counter()
+                #print(cur_time - last_acc_time)
+                if ((cur_time - last_acc_time) > CAM_DWELL_TIME) :
+                    print('Call Camera popup here', CameraIP)
+                    mycam = ONVIFCameraControl((CameraIP, 80), "admin", "admin")
+                    mycam.goto_preset(preset_token=CameraPreset)
+                    print(CameraPreset)
+                    myCameraThread(CameraIP=CameraIP,timeout=CAM_HOLD_TIME,VidAnal='Normal').start()
+                    CamIndex = pd_Camera.index[pd_Camera['IPAddr'] == CameraIP][0]
+                    pd_Camera.iloc[CamIndex, pd_Camera.columns.get_loc('LastAccTime')] = time.perf_counter()
+                    myAudioThread(Event["events"]["type"] + 'event detected').start()
+                else :
+                    print(CameraIP,'Time Lapsed is :',cur_time - last_acc_time)
             else:
                 print('Not Valid IP')
         else:
@@ -314,7 +347,7 @@ class MyThread(QThread):
 class Window(QMainWindow):
     def __init__(self):
         super().__init__()
-        title = "Multi-Vibration Sensor Server"
+        title = "Multi-Vibration Sensor Server- Version B0.2"
         left = 500
         top = 300
         width = 800
